@@ -1,0 +1,14 @@
+/// @title Diamond
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+#include "huff-console/Console.huff"
+
+#define macro CONSTRUCTOR() = takes(0) returns(0) {
+
+}
+
+#define macro MAIN() = takes(0) returns(0) {
+    0x20 0x00 mstore
+    0x20 0x00 return
+}
