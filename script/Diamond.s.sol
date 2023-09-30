@@ -5,6 +5,7 @@ import "foundry-huff/HuffDeployer.sol";
 import "forge-std/Script.sol";
 
 interface Diamond {
+  function add(uint256, uint256) external pure returns(uint256);
 }
 
 contract Deploy is Script {

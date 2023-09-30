@@ -1,0 +1,197 @@
+/// @title LibDiamond
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+///
+///   Struct Diamond Storage:
+///      address contractOwner;
+///
+
+//struct FacetAddressAndSelectorPosition {
+//    address facetAddress;
+//    uint16 selectorPosition;
+//}
+
+//struct DiamondStorage {
+//    // function selector => facet address and selector position in selectors array
+//    mapping(bytes4 => FacetAddressAndSelectorPosition) facetAddressAndSelectorPosition;
+//    bytes4[] selectors;
+//    mapping(bytes4 => bool) supportedInterfaces;
+//    // owner of the contract
+//    address contractOwner;
+//}
+
+#define constant DIAMOND_STORAGE_POSITION = 0xc8fcad8db84d3cc18b4c41d551ea0ee66dd599cde068d998e57d5e09332c131c
+#define constant DIAMOND_STORAGE_SELECTORS_POSITION = 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
+
+#define constant DIAMOND_STORAGE_FACETS_OFFSET = 0x00
+#define constant DIAMOND_STORAGE_SELECTORS_OFFSET = 0x20
+#define constant DIAMOND_STORAGE_INTERFACES_OFFSET = 0x40
+#define constant DIAMOND_STORAGE_OWNER_OFFSET = 0x60
+
+#define constant DIAMOND_STORAGE_FACETS_SLOT = 0x00
+#define constant DIAMOND_STORAGE_SELECTORS_SLOT = 0x01
+#define constant DIAMOND_STORAGE_INTERFACES_SLOT = 0x02
+#define constant DIAMOND_STORAGE_OWNER_SLOT = 0x03
+
+/* Functions */
+#define function setContractOwner(address) payable returns()
+#define function contractOwner() view returns(address)
+
+/* Events */
+#define event OwnershipTransferred(address indexed, address indexed)
+
+/* Errors */
+#define error NotContractOwner()
+#define error NoBytecodeAtAddress()
+
+#define macro SET_CONTRACT_OWNER() = takes(0) returns(0) {
+    0x04 calldataload                   // [ newOwnerAddr ]
+    dup1
+
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add sload    // [ previousOwnerAddr, newOwnerAddr ]
+    dup2                                // [ newOwnerAddr, previousOwnerAddr, newOwnerAddr ]
+    _SET_CONTRACT_OWNER()               // [ previousOwnerAddr, newOwnerAddr ]
+    __EVENT_HASH(OwnershipTransferred)  // [ eventHash, previousOwnerAddr, newOwnerAddr ]
+    LOG_STACK_3(0x00)
+    //Todo Check why log3 crash
+    //log3
+}
+
+#define macro _SET_CONTRACT_OWNER() = takes(1) returns(0) {
+    // [ newOwnerAddr ]
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add     // [ storagePosition, newOwnerAddr ]
+    sstore
+}
+
+#define macro CONTRACT_OWNER() = takes(0) returns(0) {
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add sload
+    push0 mstore
+    0x20 push0 return
+}
+
+#define macro _ENFORCE_IS_CONTRACT_OWNER() = takes(0) returns(0) {
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add sload    // [ contractOwner ]
+    caller                              // [ msgSender, contractOwner ]
+    dup2 dup2                           // [ msgSender, contractOwner, msgSender, contractOwner ]
+    eq continue jumpi                     // [ msgSender, contractOwner ]
+
+    __ERROR(NotContractOwner)           // [ errorHash, msgSender, contractOwner ]
+    0x00 mstore                         // [ msgSender, contractOwner ]
+    0x04 mstore                         // [ contractOwner ]
+    0x24 mstore                         // [ ]
+    0x44 0x00 revert
+
+    continue:
+}
+
+#define macro _ENFORCE_HAS_CONTRACT_CODE() = takes(4) returns(0) {
+    // Data example:
+    // Message: LibDiamondCut: _init address has no code
+    //__RIGHTPAD(0x206E6F20636F6465)
+    //__RIGHTPAD(0x4C69624469616D6F6E644375743A205F696E6974206164647265737320686173)
+    //0x28
+    //0x04 calldataload
+
+    // [ contractAddress, messageLen, messagePart1, messagePart2]
+
+    __RIGHTPAD(0x434F4E545241435420434F4445) 0x00 mstore
+    [CYAN] 0x20 mstore
+    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x0d, 0x40, 0x20)
+    LOG_STACK_4(0x00)
+
+    dup1                                // [ ccontractAddress, contractAddress, messageLen, messagePart1, messagePart2 ]
+    extcodesize                         // [ codeSize, contractAddress, messageLen, messagePart1, messagePart2 ]
+    push0                               // [ 0, codeSize, contractAddress, messageLen, messagePart1, messagePart2 ]
+    lt continue jumpi
+
+    __ERROR(NoBytecodeAtAddress)        // [ errorHash, contractAddress, messageLen, messagePart1, messagePart2 ]
+    0x00 mstore                         // [ contractAddress, messageLen, messagePart1, messagePart2 ]
+    0x04 mstore                         // [ messageLen, messagePart1, messagePart2 ]
+    0x40                                // [ messageOffset, messageLen, messagePart1, messagePart2 ]
+    0x24 mstore                         // [ messageLen, messagePart1, messagePart2 ]
+    0x44 mstore                         // [ errorMessagePart1, messagePart2 ]
+    0x64 mstore                         // [ messagePart2 ]
+    0x84 mstore                         // [ ]
+
+    0xa4 0x00 revert
+
+    continue:
+}
+
+#define macro _GET_SELECTORS_ITEM() = takes (1) returns (1) {
+    // [ id ]
+    0x08 dup2 div        // [ id/8, id ]
+    [DIAMOND_STORAGE_SELECTORS_POSITION] add
+    sload                // [ val, id ]
+
+    swap1                // [ id, val ]
+    0x08 swap1 mod       // [ id%8, val ]
+    0x20 mul            // [ (id%0x08)*0x20, val ]
+    shr                 // [ shifted_val ]
+    0xffffffff          // [ mask, shifted_val ]
+    and                 // [ masked_shifted_val ]
+    LOG_STACK_1(0x00)
+}
+
+#define macro _SET_SELECTORS_ITEM() = takes (1) returns (1) {
+    // [ value ]
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
+    dup1 0x01 add
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sstore
+
+    0x08 dup2 div                               // [ id/8, id, value ]
+    [DIAMOND_STORAGE_SELECTORS_POSITION] add    // [ slot_position, id, value ]
+    dup1 sload                                  // [ slot_value, slot_position, id, value ]
+    swap2 swap1 swap3 swap1                      // [ id, value, slot_value, slot_position ]
+    0x08 swap1 mod                              // [ id%0x08, value, slot_value, slot_position ]
+    0x20 mul                                    // [ (id%0x08)*0x20, value, slot_value, slot_position ]
+    dup1                                        // [ (id%0x08)*0x20, (id%0x08)*0x20, value, slot_value, slot_position ]
+    0xffffffff swap1 shl not                    // [ mask, (id%0x08)*0x20, value, slot_value, slot_position ]
+    swap2 swap1                                 // [ (id%0x08)*0x20, value, mask, slot_value, slot_position ]
+    shl                                         // [ shifted_value, mask, slot_value, slot_position ]
+    swap2 and                                   // [ masked_slot_value, shifted_value, slot_position ]
+    or swap1                                    // [ slot_position, updated_slot_value ]
+    sstore
+}
+
+#define macro _GET_INTERFACES_ITEM_POSITION() = takes (1) returns (1) {
+    // [ key ]
+    0x00 mstore
+    [DIAMOND_STORAGE_INTERFACES_SLOT] 0x20 mstore // [ ]
+    0x40 0x00 sha3                                // [ hash ]
+}
+
+#define macro _SET_INTERFACES_ITEM() = takes (1) returns (1) {
+    // [ key, value ]
+    GET_INTERFACES_ITEM_POSITION()    // [ hash, value ]
+    sstore
+}
+
+#define macro _GET_INTERFACES_ITEM() = takes (1) returns (1) {
+    // [ key ]
+    GET_INTERFACES_ITEM_POSITION()    // [ hash ]
+    sload
+}
+
+
+#define macro LIB_MAIN() = takes(1) returns(1) {
+    __RIGHTPAD(0x4C4942204D41494E2053454C4543544F523A) 0x00 mstore
+    [CYAN] 0x20 mstore
+    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x12, 0x40, 0x20)
+    LOG_STACK_1(0x00)
+
+    dup1 __FUNC_SIG(setContractOwner)   eq setContractOwnerJump jumpi
+    dup1 __FUNC_SIG(contractOwner)      eq contractOwnerJump jumpi
+
+    noMatch jump
+
+    setContractOwnerJump:
+        SET_CONTRACT_OWNER()
+    contractOwnerJump:
+        CONTRACT_OWNER()
+
+    stop
+
+    noMatch:
+}
