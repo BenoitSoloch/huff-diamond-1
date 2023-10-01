@@ -1,7 +1,7 @@
 
 # HUFF-DIAMOND
 
-Implementation of [EIP-2535](https://eips.ethereum.org/EIPS/eip-2535) in huff.
+Implementation of [EIP-2535](https://eips.ethereum.org/EIPS/eip-2535) in huff (Diamond Smart-contract pattern).
 
 The implementation is based on the [Diamond-1](https://github.com/mudgen/diamond-1-hardhat) repository created by [Mudgen](https://twitter.com/mudgen)
 

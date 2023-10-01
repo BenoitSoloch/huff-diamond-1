@@ -185,6 +185,12 @@
     0xffffffffffffffffffffffff 0xa0 shl not and
 }
 
+#define macro _GET_FACET_ITEM() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+}
+
 #define macro _SET_FACET_ITEM() = takes (1) returns (1) {
     // [ key, value ]
     _GET_FACET_ITEM_POSITION()    // [ hash, value ]
@@ -237,11 +243,11 @@
 
 #define macro ADD_FUNCTIONS() = takes(1) returns(1) {
     0x04 calldataload                // [ address ]
-    dup1 0x00 eq iszero continue_jump jumpi
+    dup1 0x00 eq iszero continue_add_jump jumpi
     //TODO: Revert
     0x00 0x00 revert
 
-    continue_jump:
+    continue_add_jump:
     _GET_SELECTORS_LEN()            // [ selectors_count, address ]
 
     // "LibDiamondCut: _init address has no code:" message
@@ -254,7 +260,7 @@
     0x24 calldataload                // [ arr_offset, selectors_count, address ]
     dup1 0x04 add calldataload       // [ arr_len, selectors_count, address ]
 
-    dup1 0x00 eq jump_end jumpi      // [ arr_len, selectors_count, address ]
+    dup1 0x00 eq jump_add_end jumpi      // [ arr_len, selectors_count, address ]
 
     0x00
     loop_read:
@@ -262,12 +268,12 @@
         dup1 0x20 mul 0x64 add calldataload    // [ selector, id, arr_len, selectors_count, address ]
         //address oldFacetAddress = ds.facetAddressAndSelectorPosition[selector].facetAddress;
         dup1 _GET_FACET_ADDRESS_VALUE()            // [ oldFacetAddress, selector, id, arr_len, selectors_count, address ]
-        0x00 eq iszero continue_loop jumpi
+        0x00 eq iszero continue_add_loop jumpi
         //TODO: Revert
         //revert CannotAddFunctionToDiamondThatAlreadyExists(selector);
         0x00 0x00 revert
 
-        continue_loop:                          // [ selector, id, arr_len, selectors_count, address ]
+        continue_add_loop:                          // [ selector, id, arr_len, selectors_count, address ]
         dup4 dup6                               // [ address, selectors_count, selector, id, arr_len, selectors_count, address ]
         _CREATE_FACET_STRUCT()                  // [ struct_value, selector, id, arr_len, selectors_count, address ]
         dup2                                    // [ selector, struct_value, selector, id, arr_len, selectors_count, address ]
@@ -277,7 +283,59 @@
         0x01 add                                // [ id++, arr_len, selectors_count++, address ]
         dup2 dup2 lt loop_read jumpi
 
-    jump_end:
+    jump_add_end:
+    //TODO: pop stack items
+}
+
+#define macro REPLACE_FUNCTIONS() = takes(1) returns(1) {
+    0x04 calldataload                       // [ address ]
+    dup1 0x00 eq iszero continue_jump jumpi
+    //TODO: Revert
+    0x00 0x00 revert
+
+    continue_add_jump:
+    // "LibDiamondCut: _init address has no code:" message
+    __RIGHTPAD(0x206E6F20636F6465)                                      // [ msg_part2, selectors_count, address ]
+    0x4C69624469616D6F6E644375743A205265706C61636520666163657420686173  // [ msg_part1, msg_part2, selectors_count, address ]
+    0x50                                                                // [ len, msg_part1, msg_part2, selectors_count, address ]
+    dup5                                                                // [ address, len, msg_part1, msg_part2, selectors_count, address ]
+    _ENFORCE_HAS_CONTRACT_CODE()                                        // [ selectors_count, address ]
+
+    0x24 calldataload                       // [ arr_offset, selectors_count, address ]
+    dup1 0x04 add calldataload              // [ arr_len, selectors_count, address ]
+    dup1 0x00 eq jump_replace_end jumpi      // [ arr_len, selectors_count, address ]
+
+    dup1 0x20 mul 0x64 add calldataload        // [ selector, id, arr_len, selectors_count, address ]
+    dup1 _GET_FACET_ADDRESS_VALUE()            // [ oldFacetAddress, selector, id, arr_len, selectors_count, address ]
+
+    dup1 address eq revert_rep_addr_this jumpi  // [ selector, id, arr_len, selectors_count, address ]
+    dup1 0x00 eq revert_rep_addr_zero jumpi     // [ selector, id, arr_len, selectors_count, address ]
+    0x00 eq revert_rep_addr_facet jumpi         // [ selector, id, arr_len, selectors_count, address ]
+
+    // TODO address replace
+    dup1 _GET_FACET_ITEM()                      // [ facet_struct, selector, id, arr_len, selectors_count, address ]
+    0xffffffffffffffffffffffff 0xa0 shl and     // [ masked_facet_struct, selector, id, arr_len, selectors_count, address ]
+    dup6 or swap1                               // [ selector, updated_facet_struct, id, arr_len, selectors_count, address ]
+    _SET_FACET_ITEM()                           // [ id, arr_len, selectors_count, address ]
+
+    jump_replace_end jump                       // [ id, arr_len, selectors_count, address ]
+
+    revert_rep_addr_zero:
+    //TODO: Revert
+    //revert CannotAddFunctionToDiamondThatAlreadyExists(selector);
+    0x00 0x00 revert
+
+    revert_rep_addr_this:
+    //TODO: Revert
+    //revert CannotReplaceImmutableFunction(selector);
+    0x00 0x00 revert
+
+    revert_rep_addr_facet:
+    //TODO: Revert
+    //revert CannotReplaceFunctionWithTheSameFunctionFromTheSameFacet(selector);
+    0x00 0x00 revert
+
+    jump_replace_end:
     //TODO: pop stack items
 }
 
