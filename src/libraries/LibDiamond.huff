@@ -13,11 +13,9 @@
 //}
 
 //struct DiamondStorage {
-//    // function selector => facet address and selector position in selectors array
 //    mapping(bytes4 => FacetAddressAndSelectorPosition) facetAddressAndSelectorPosition;
 //    bytes4[] selectors;
 //    mapping(bytes4 => bool) supportedInterfaces;
-//    // owner of the contract
 //    address contractOwner;
 //}
 
@@ -37,6 +35,7 @@
 /* Functions */
 #define function setContractOwner(address) payable returns()
 #define function contractOwner() view returns(address)
+#define function testArgs(address, bytes4[]) view returns()
 
 /* Events */
 #define event OwnershipTransferred(address indexed, address indexed)
@@ -86,13 +85,6 @@
 }
 
 #define macro _ENFORCE_HAS_CONTRACT_CODE() = takes(4) returns(0) {
-    // Data example:
-    // Message: LibDiamondCut: _init address has no code
-    //__RIGHTPAD(0x206E6F20636F6465)
-    //__RIGHTPAD(0x4C69624469616D6F6E644375743A205F696E6974206164647265737320686173)
-    //0x28
-    //0x04 calldataload
-
     // [ contractAddress, messageLen, messagePart1, messagePart2]
 
     __RIGHTPAD(0x434F4E545241435420434F4445) 0x00 mstore
@@ -117,6 +109,7 @@
     0xa4 0x00 revert
 
     continue:
+    pop pop pop pop pop pop
 }
 
 #define macro _GET_SELECTORS_ITEM() = takes (1) returns (1) {
@@ -134,7 +127,7 @@
     LOG_STACK_1(0x00)
 }
 
-#define macro _SET_SELECTORS_ITEM() = takes (1) returns (1) {
+#define macro _PUSH_SELECTORS_ITEM() = takes (1) returns (1) {
     // [ value ]
     [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
     dup1 0x01 add
@@ -155,6 +148,10 @@
     sstore
 }
 
+#define macro _GET_SELECTORS_LEN() = takes (1) returns (1) {
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
+}
+
 #define macro _GET_INTERFACES_ITEM_POSITION() = takes (1) returns (1) {
     // [ key ]
     0x00 mstore
@@ -164,16 +161,47 @@
 
 #define macro _SET_INTERFACES_ITEM() = takes (1) returns (1) {
     // [ key, value ]
-    GET_INTERFACES_ITEM_POSITION()    // [ hash, value ]
+    _GET_INTERFACES_ITEM_POSITION()    // [ hash, value ]
     sstore
 }
 
 #define macro _GET_INTERFACES_ITEM() = takes (1) returns (1) {
     // [ key ]
-    GET_INTERFACES_ITEM_POSITION()    // [ hash ]
+    _GET_INTERFACES_ITEM_POSITION()    // [ hash ]
     sload
 }
 
+#define macro _GET_FACET_ITEM_POSITION() = takes (1) returns (1) {
+    // [ key ]
+    0x00 mstore
+    [DIAMOND_STORAGE_FACETS_SLOT] 0x20 mstore     // [ ]
+    0x40 0x00 sha3                                // [ hash ]
+}
+
+#define macro _GET_FACET_ADDRESS_VALUE() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+    0xffffffffffffffffffffffff 0xa0 shl not and
+}
+
+#define macro _SET_FACET_ITEM() = takes (1) returns (1) {
+    // [ key, value ]
+    _GET_FACET_ITEM_POSITION()    // [ hash, value ]
+    sstore
+}
+
+#define macro _CREATE_FACET_STRUCT() = takes (1) returns (1) {
+    // [ facetAddress, selectorCount ]
+    swap1 0xA0 shl or       // [ struct_bytes ]
+}
+
+#define macro _GET_FACET_POSITION_VALUE() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+    0xA0 shr
+}
 
 #define macro LIB_MAIN() = takes(1) returns(1) {
     __RIGHTPAD(0x4C4942204D41494E2053454C4543544F523A) 0x00 mstore
@@ -183,6 +211,7 @@
 
     dup1 __FUNC_SIG(setContractOwner)   eq setContractOwnerJump jumpi
     dup1 __FUNC_SIG(contractOwner)      eq contractOwnerJump jumpi
+    dup1 __FUNC_SIG(testArgs)           eq testArgsJump jumpi
 
     noMatch jump
 
@@ -190,8 +219,89 @@
         SET_CONTRACT_OWNER()
     contractOwnerJump:
         CONTRACT_OWNER()
+    testArgsJump:
+        TEST_ARGS()
 
     stop
 
     noMatch:
+}
+
+#define macro TEST_ARGS() = takes(1) returns(1) {
+    __RIGHTPAD(0x544553542041524753) 0x00 mstore
+    [MAGENTA] 0x20 mstore
+    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x09, 0x40, 0x20)
+
+    LOG_CALLDATA(0x04, 0xE0, 0x00)
+}
+
+#define macro ADD_FUNCTIONS() = takes(1) returns(1) {
+    0x04 calldataload                // [ address ]
+    dup1 0x00 eq iszero continue_jump jumpi
+    //TODO: Revert
+    0x00 0x00 revert
+
+    continue_jump:
+    _GET_SELECTORS_LEN()            // [ selectors_count, address ]
+
+    // "LibDiamondCut: _init address has no code:" message
+    __RIGHTPAD(0x636F6465)                                              // [ msg_part2, selectors_count, address ]
+    0x4C69624469616D6F6E644375743A2041646420666163657420686173206E6F20  // [ msg_part1, msg_part2, selectors_count, address ]
+    0x48                                                                // [ len, msg_part1, msg_part2, selectors_count, address ]
+    dup5                                                                // [ address, len, msg_part1, msg_part2, selectors_count, address ]
+    _ENFORCE_HAS_CONTRACT_CODE()                                        // [ selectors_count, address ]
+
+    0x24 calldataload                // [ arr_offset, selectors_count, address ]
+    dup1 0x04 add calldataload       // [ arr_len, selectors_count, address ]
+
+    dup1 0x00 eq jump_end jumpi      // [ arr_len, selectors_count, address ]
+
+    0x00
+    loop_read:
+        //bytes4 selector = _functionSelectors[selectorIndex];
+        dup1 0x20 mul 0x64 add calldataload    // [ selector, id, arr_len, selectors_count, address ]
+        //address oldFacetAddress = ds.facetAddressAndSelectorPosition[selector].facetAddress;
+        dup1 _GET_FACET_ADDRESS_VALUE()            // [ oldFacetAddress, selector, id, arr_len, selectors_count, address ]
+        0x00 eq iszero continue_loop jumpi
+        //TODO: Revert
+        //revert CannotAddFunctionToDiamondThatAlreadyExists(selector);
+        0x00 0x00 revert
+
+        continue_loop:                          // [ selector, id, arr_len, selectors_count, address ]
+        dup4 dup6                               // [ address, selectors_count, selector, id, arr_len, selectors_count, address ]
+        _CREATE_FACET_STRUCT()                  // [ struct_value, selector, id, arr_len, selectors_count, address ]
+        dup2                                    // [ selector, struct_value, selector, id, arr_len, selectors_count, address ]
+        _SET_FACET_ITEM()                       // [ selector, id, arr_len, selectors_count, address ]
+        _PUSH_SELECTORS_ITEM()                  // [ id, arr_len, selectors_count, address ]
+        swap2 0x01 add swap2                    // [ id, arr_len, selectors_count++, address ]
+        0x01 add                                // [ id++, arr_len, selectors_count++, address ]
+        dup2 dup2 lt loop_read jumpi
+
+    jump_end:
+    //TODO: pop stack items
+}
+
+#define macro INITIALIZE_DIAMOND_CUT() = takes(1) returns(1) {
+    0x04 calldataload                                                   // [ _init ]
+    dup1 eq push0 jump_end jumpi                                        // [ _init ]
+
+    // "LibDiamondCut: _init address has no code:" message
+    __RIGHTPAD(0x206E6F20636F6465)                                      // [ msg_part2, _init ]
+    0x4C69624469616D6F6E644375743A205F696E6974206164647265737320686173  // [ msg_part1, msg_part2, _init ]
+    0x51                                                                // [ len, msg_part1, msg_part2, _init ]
+    dup4                                                                // [ _init, len, msg_part1, msg_part2, _init ]
+    _ENFORCE_HAS_CONTRACT_CODE()
+
+    0x00 0x00                                       // [ retOffset, retSize, _init ]
+    0x24 calldataload                               // [ argOffset, retOffset, retSize, _init ]
+    dup1 0x04 add calldataload                      // [ argSize, argOffset, retOffset, retSize, _init ]
+    // TODO: Put datas in memory
+
+    dup6 0xffff                                     // [ gas, address, argSize, argOffset, retOffset, retSize, _init ]
+    delegatecall                                    // [ success, _init ]
+    0x01 eq jump_end jumpi
+
+    // TODO: Finish this function
+
+    jump_end:
 }
