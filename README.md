@@ -1,4 +1,5 @@
 <img align="right" width="150" height="150" top="100" src="./assets/blueprint.png">
+
 # HUFF-DIAMOND
 
 Implementation of [EIP-2535](https://eips.ethereum.org/EIPS/eip-2535) in huff (Diamond Smart-contract pattern).
