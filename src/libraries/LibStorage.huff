@@ -128,7 +128,7 @@
     sstore
 }
 
-#define macro _GET_INTERFACES_ITEM() = takes (1) returns (1) {
+#define macro _GET_INTERFACES_ITEM_AT() = takes (1) returns (1) {
     // [ key ]
     _GET_INTERFACES_ITEM_POSITION()    // [ hash ]
     sload

@@ -2,9 +2,13 @@
 /// @notice SPDX-License-Identifier: MIT
 /// @author Benoit S <https://github.com/BenoitSoloch>
 
-#include "./libraries/LibDiamond.huff"
+#include "../libraries/LibDiamond.huff"
 
-#define macro TRANSFER_OWNERSHIP() = takes(1) returns(0) {
+#define macro TRANSFER_OWNERSHIP() = takes(0) returns(0) {
     _ENFORCE_IS_CONTRACT_OWNER()
     SET_CONTRACT_OWNER()
+}
+
+#define macro OWNER() = takes(0) returns(0) {
+    CONTRACT_OWNER()
 }

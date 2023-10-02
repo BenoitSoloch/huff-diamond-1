@@ -8,12 +8,17 @@
 #define macro CONSTRUCTOR() = takes(0) returns(0) {
     caller
     _SET_CONTRACT_OWNER()
+    _LIB_DIAMOND_CUT()
 }
 
 #define macro MAIN() = takes(0) returns(0) {
     0x00 calldataload 0xE0 shr
 
     LIB_MAIN()
+
+    //TODO:
+        //Implementing the fallback part + delegatecalls
+        // Remove LIB_MAIN() call (was for temporary tests purpose)
 
     0x20 0x00 return
 }

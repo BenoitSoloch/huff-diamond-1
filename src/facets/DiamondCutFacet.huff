@@ -1,0 +1,11 @@
+/// @title DiamondCutFacet
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+#include "../interfaces/IDiamond.huff"
+#include "../libraries/LibDiamond.huff"
+
+#define macro DIAMOND_CUT() = takes(1) returns(0) {
+    _ENFORCE_IS_CONTRACT_OWNER()
+    _LIB_DIAMOND_CUT()
+}

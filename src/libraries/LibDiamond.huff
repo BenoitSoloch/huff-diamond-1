@@ -79,14 +79,6 @@
     pop pop pop pop pop pop
 }
 
-#define macro TEST_ARGS() = takes(1) returns(1) {
-    __RIGHTPAD(0x544553542041524753) 0x00 mstore
-    [MAGENTA] 0x20 mstore
-    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x09, 0x40, 0x20)
-
-    LOG_CALLDATA(0x04, 0xE0, 0x00)
-}
-
 #define macro ADD_FUNCTIONS() = takes(1) returns(1) {
     0x04 calldataload                // [ address ]
     dup1 0x00 eq iszero continue_add_jump jumpi
@@ -248,7 +240,11 @@
         pop pop pop
 }
 
-#define macro INITIALIZE_DIAMOND_CUT() = takes(1) returns(1) {
+#define macro _LIB_DIAMOND_CUT() = takes(0) returns(0) {
+    //TODO: IMPLEMENTING THE FUNCTION
+}
+
+#define macro INITIALIZE_DIAMOND_CUT() = takes(0) returns(0) {
     0x04 calldataload                                                   // [ _init ]
     dup1 eq push0 jump_end jumpi                                        // [ _init ]
 
@@ -273,6 +269,14 @@
     jump_end:
 }
 
+#define macro TEST_ARGS() = takes(1) returns(1) {
+    __RIGHTPAD(0x544553542041524753) 0x00 mstore
+    [MAGENTA] 0x20 mstore
+    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x09, 0x40, 0x20)
+
+    LOG_CALLDATA(0x04, 0xE0, 0x00)
+}
+
 #define macro LIB_MAIN() = takes(1) returns(1) {
     __RIGHTPAD(0x4C4942204D41494E2053454C4543544F523A) 0x00 mstore
     [CYAN] 0x20 mstore
@@ -282,6 +286,7 @@
     dup1 __FUNC_SIG(setContractOwner)   eq setContractOwnerJump jumpi
     dup1 __FUNC_SIG(contractOwner)      eq contractOwnerJump jumpi
     dup1 __FUNC_SIG(testArgs)           eq testArgsJump jumpi
+    dup1 __FUNC_SIG(testArgs2)           eq testArgs2Jump jumpi
 
     noMatch jump
 
