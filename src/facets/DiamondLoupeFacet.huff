@@ -1,0 +1,53 @@
+/// @title  DiamondLoupeFacet
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+#include "./libraries/LibDiamond.huff"
+
+//TODO: Functions:
+    // - facets
+    // - facetAddresses
+
+#define macro FACET_FUNCTION_SELECTORS() = takes(0) returns(0) {
+    0x04 calldataload                           // [ selectors_len, _facet ]
+
+    _GET_SELECTORS_LEN()                        // [ selectors_len, _facet ]
+    0x00 0x00                                   // [ id, arr_len, selectors_len, _facet ]
+
+    //Placing array offset in memory
+    0x20 0x00 mstore                            // [ id, arr_len, selectors_len, _facet ]
+
+    loop_func_selectors:
+        dup1 _GET_SELECTORS_ITEM_AT()           // [ selector, id, arr_len, selectors_len, _facet ]
+        dup1 _GET_FACET_ADDRESS_VALUE()         // [ facet_addr, selector, id, arr_len, selectors_len, _facet ]
+        dup6 eq iszero continue_loop_func_selectors jumpi       // [ selector, id, arr_len, selectors_len, _facet ]
+
+        //_facetFunctionSelectors[numSelectors] = selector;
+        dup2 0x20 mul                           // [ id*0x20, selector, id, arr_len, selectors_len, _facet ]
+        0x40 add mstore                         // [ id, arr_len, selectors_len, _facet ]
+        swap1 0x01 add swap1                    // [ id, arr_len++, selectors_len, _facet ]
+
+        continue_loop_func_selectors:
+        0x01 add                                // [ id++, arr_len++, selectors_len, _facet ]
+        dup3 dup2 lt loop_func_selectors jumpi  // [ id++, arr_len++, selectors_len, _facet ]
+
+    pop dup1                                    // [ arr_len, arr_len, selectors_len, _facet ]
+    0x20 mstore                                 // [ arr_len, selectors_len, _facet ]
+
+    0x20 mul 0x40 add                           // [ (arr_len*0x20)+0x40, selectors_len, _facet ]
+    0x00 return
+}
+
+#define macro FACET_ADDRESS() = takes(0) returns(0) {
+    0x04 calldataload                   // [ function_selector ]
+    _GET_FACET_ADDRESS_VALUE()          // [ facet_address ]
+    0x00 mstore                         // [ ]
+    0x20 0x00 return                    // [ ]
+}
+
+#define macro SUPPORTS_INTERFACE() = takes(0) returns(0) {
+    0x04 calldataload                   // [ interface_id]
+    _GET_INTERFACES_ITEM_AT()           // [ bool ]
+    0x00 mstore                         // [ ]
+    0x20 0x00 return                    // [ ]
+}
