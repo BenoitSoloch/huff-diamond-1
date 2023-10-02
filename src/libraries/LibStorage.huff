@@ -1,0 +1,198 @@
+/// @title LibStorage
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+//struct FacetAddressAndSelectorPosition {
+//    address facetAddress;
+//    uint16 selectorPosition;
+//}
+
+//struct DiamondStorage {
+//    mapping(bytes4 => FacetAddressAndSelectorPosition) facetAddressAndSelectorPosition;
+//    bytes4[] selectors;
+//    mapping(bytes4 => bool) supportedInterfaces;
+//    address contractOwner;
+//}
+
+#define constant DIAMOND_STORAGE_POSITION = 0xc8fcad8db84d3cc18b4c41d551ea0ee66dd599cde068d998e57d5e09332c131c
+#define constant DIAMOND_STORAGE_SELECTORS_POSITION = 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
+
+#define constant DIAMOND_STORAGE_FACETS_OFFSET = 0x00
+#define constant DIAMOND_STORAGE_SELECTORS_OFFSET = 0x20
+#define constant DIAMOND_STORAGE_INTERFACES_OFFSET = 0x40
+#define constant DIAMOND_STORAGE_OWNER_OFFSET = 0x60
+
+#define constant DIAMOND_STORAGE_FACETS_SLOT = 0x00
+#define constant DIAMOND_STORAGE_SELECTORS_SLOT = 0x01
+#define constant DIAMOND_STORAGE_INTERFACES_SLOT = 0x02
+#define constant DIAMOND_STORAGE_OWNER_SLOT = 0x03
+
+/* CONTRACT OWNER PART */
+
+#define macro _SET_CONTRACT_OWNER() = takes(1) returns(0) {
+    // [ newOwnerAddr ]
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add     // [ storagePosition, newOwnerAddr ]
+    sstore
+}
+
+#define macro _GET_CONTRACT_OWNER() = takes(1) returns(0) {
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_OWNER_OFFSET] add     // [ storagePosition ]
+    sload                                                             // [ contract_owner, storagePosition ]
+}
+
+/* SELECTOR PART */
+
+#define macro _GET_SELECTORS_LEN() = takes (1) returns (1) {
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
+}
+
+#define macro _GET_SELECTORS_ITEM_AT() = takes (1) returns (1) {
+    // [ id ]
+    0x08 dup2 div        // [ id/8, id ]
+    [DIAMOND_STORAGE_SELECTORS_POSITION] add
+    sload                // [ val, id ]
+
+    swap1                // [ id, val ]
+    0x08 swap1 mod       // [ id%8, val ]
+    0x20 mul            // [ (id%0x08)*0x20, val ]
+    shr                 // [ shifted_val ]
+    0xffffffff          // [ mask, shifted_val ]
+    and                 // [ masked_shifted_val ]
+    LOG_STACK_1(0x00)
+}
+
+#define macro _SET_SELECTORS_ITEM_AT() = takes (1) returns (1) {
+    // [ id, value ]
+    0x08 dup2 div                   // [ id/8, id, value ]
+    [DIAMOND_STORAGE_SELECTORS_POSITION] add dup1
+    sload                           // [ storage_val, storage_position,  id, value ]
+
+    swap1 swap2                     // [ id, storage_val, storage_position, value ]
+    0x08 swap1 mod                  // [ id%8, storage_val, storage_position, value ]
+    0x20 mul                        // [ (id%0x08)*0x20, storage_val, storage_position, value ]
+    dup1                            // [ offset, offset, storage_val, storage_position, value ]
+    0xffffffff swap1 shl not        // [ mask, offset, storage_val, storage_position, value ]
+    dup3 and                        // [ masked_value, offset, storage_val, storage_position, value ]
+    swap1                           // [ offset, masked_value, storage_val, storage_position, value ]
+    dup5 swap1 shl                  // [ shifted_value, masked_value, storage_val, storage_position, value ]
+    or                              // [ updated_value, storage_val, storage_position, value ]
+    dup3 sstore                     // [ storage_val, storage_position, value ]
+    pop pop pop                     // [ ]
+}
+
+#define macro _PUSH_SELECTORS_ITEM() = takes (1) returns (1) {
+    // [ value ]
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
+    dup1 0x01 add
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sstore
+
+    0x08 dup2 div                               // [ id/8, id, value ]
+    [DIAMOND_STORAGE_SELECTORS_POSITION] add    // [ slot_position, id, value ]
+    dup1 sload                                  // [ slot_value, slot_position, id, value ]
+    swap2 swap1 swap3 swap1                      // [ id, value, slot_value, slot_position ]
+    0x08 swap1 mod                              // [ id%0x08, value, slot_value, slot_position ]
+    0x20 mul                                    // [ (id%0x08)*0x20, value, slot_value, slot_position ]
+    dup1                                        // [ (id%0x08)*0x20, (id%0x08)*0x20, value, slot_value, slot_position ]
+    0xffffffff swap1 shl not                    // [ mask, (id%0x08)*0x20, value, slot_value, slot_position ]
+    swap2 swap1                                 // [ (id%0x08)*0x20, value, mask, slot_value, slot_position ]
+    shl                                         // [ shifted_value, mask, slot_value, slot_position ]
+    swap2 and                                   // [ masked_slot_value, shifted_value, slot_position ]
+    or swap1                                    // [ slot_position, updated_slot_value ]
+    sstore
+}
+
+#define macro _POP_SELECTORS_ITEM() = takes (1) returns (1) {
+    // Replacing value by 0x00 value
+    0x00000000 _GET_SELECTORS_LEN()             // [ selector_len, empty_val ]
+    0x01 swap1 sub                              // [ selector_len--, empty_val ]
+    _SET_SELECTORS_ITEM_AT()
+
+    // Updating selectors len
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sload
+    0x01 swap1 sub
+    [DIAMOND_STORAGE_POSITION] [DIAMOND_STORAGE_SELECTORS_OFFSET] add sstore
+}
+
+/* INTERFACES PART */
+
+#define macro _GET_INTERFACES_ITEM_POSITION() = takes (1) returns (1) {
+    // [ key ]
+    0x00 mstore
+    [DIAMOND_STORAGE_INTERFACES_SLOT] 0x20 mstore // [ ]
+    0x40 0x00 sha3                                // [ hash ]
+}
+
+#define macro _SET_INTERFACES_ITEM() = takes (1) returns (1) {
+    // [ key, value ]
+    _GET_INTERFACES_ITEM_POSITION()    // [ hash, value ]
+    sstore
+}
+
+#define macro _GET_INTERFACES_ITEM() = takes (1) returns (1) {
+    // [ key ]
+    _GET_INTERFACES_ITEM_POSITION()    // [ hash ]
+    sload
+}
+
+/* FACETS PART */
+
+#define macro _GET_FACET_ITEM_POSITION() = takes (1) returns (1) {
+    // [ key ]
+    0x00 mstore
+    [DIAMOND_STORAGE_FACETS_SLOT] 0x20 mstore     // [ ]
+    0x40 0x00 sha3                                // [ hash ]
+}
+
+#define macro _GET_FACET_POSITION_VALUE() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+    0xA0 shr
+}
+
+#define macro _GET_FACET_ITEM() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+}
+
+#define macro _GET_FACET_ADDRESS_VALUE() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload
+    0xffffffffffffffffffffffff 0xa0 shl not and
+}
+
+#define macro _GET_FACET_SELECTOR_VALUE() = takes (1) returns (1) {
+    // [ key ]
+    _GET_FACET_ITEM_POSITION()    // [ hash ]
+    sload 0xa0 shr                // [ selector_value ]
+}
+
+#define macro _SET_FACET_ITEM() = takes (1) returns (1) {
+    // [ key, value ]
+    _GET_FACET_ITEM_POSITION()    // [ hash, value ]
+    sstore
+}
+
+#define macro _CREATE_FACET_STRUCT() = takes (1) returns (1) {
+    // [ facetAddress, selectorCount ]
+    swap1 0xA0 shl or       // [ struct_bytes ]
+}
+
+#define macro _DELETE_FACET_STRUCT_AT() = takes (1) returns (1) {
+    // [ key ]
+    0x0000000000000000000000000000000000000000000000000000000000000000
+    _GET_FACET_ITEM_POSITION()    // [ hash, value ]
+    sstore
+}
+
+#define macro _MODIFY_FACET_SELECTOR_AT() = takes (1) returns (1) {
+    // [ key, value ]
+    _GET_FACET_ITEM_POSITION()          // [ hash, value ]
+    dup1 sload                          // [ storage_value, hash, value ]
+    0xffff 0xa0 shl not and             // [ masked_storage_value, hash, value ]
+    dup3 0xa0 shl or                    // [ updated_storage_value, hash, value ]
+    swap1 sstore                        // [ value ]
+    pop
+}

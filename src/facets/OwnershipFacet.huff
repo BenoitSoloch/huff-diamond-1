@@ -1,0 +1,10 @@
+/// @title OwnershipFacet
+/// @notice SPDX-License-Identifier: MIT
+/// @author Benoit S <https://github.com/BenoitSoloch>
+
+#include "./libraries/LibDiamond.huff"
+
+#define macro TRANSFER_OWNERSHIP() = takes(1) returns(0) {
+    _ENFORCE_IS_CONTRACT_OWNER()
+    SET_CONTRACT_OWNER()
+}
