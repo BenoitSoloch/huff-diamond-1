@@ -277,6 +277,14 @@
     LOG_CALLDATA(0x04, 0xE0, 0x00)
 }
 
+#define macro TEST_ARGS2() = takes(1) returns(1) {
+    __RIGHTPAD(0x544553542041524753) 0x00 mstore
+    [MAGENTA] 0x20 mstore
+    LOG_MEMORY_AS_STRING_STYLE(0x00, 0x09, 0x40, 0x20)
+
+    LOG_CALLDATA(0x04, 0xE0, 0x00)
+}
+
 #define macro LIB_MAIN() = takes(1) returns(1) {
     __RIGHTPAD(0x4C4942204D41494E2053454C4543544F523A) 0x00 mstore
     [CYAN] 0x20 mstore
@@ -285,8 +293,6 @@
 
     dup1 __FUNC_SIG(setContractOwner)   eq setContractOwnerJump jumpi
     dup1 __FUNC_SIG(contractOwner)      eq contractOwnerJump jumpi
-    dup1 __FUNC_SIG(testArgs)           eq testArgsJump jumpi
-    dup1 __FUNC_SIG(testArgs2)           eq testArgs2Jump jumpi
 
     noMatch jump
 
@@ -294,8 +300,6 @@
         SET_CONTRACT_OWNER()
     contractOwnerJump:
         CONTRACT_OWNER()
-    testArgsJump:
-        TEST_ARGS()
 
     stop
 

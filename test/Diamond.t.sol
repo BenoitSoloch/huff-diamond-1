@@ -27,8 +27,6 @@ contract DiamondTest is Test {
 }
 
 interface Diamond {
-    error NoBytecodeAtAddress();
-
     function contractOwner() external view returns(address);
     function setContractOwner(address) external;
 }
